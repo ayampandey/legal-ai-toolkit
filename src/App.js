@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // --- Helper Components ---
 
@@ -13,11 +13,15 @@ const Icon = ({ path, className = "w-6 h-6" }) => (
 const DocumentIcon = () => <Icon path="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />;
 const CompareIcon = () => <Icon path="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z" />;
 const GenerateIcon = () => <Icon path="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" />;
-const LoadingIcon = () => (
-    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
+const UploadIcon = () => <Icon path="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" className="w-5 h-5 mr-2" />;
+const LoadingIcon = ({ text = '' }) => (
+    <div className="flex items-center justify-center">
+        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        {text}
+    </div>
 );
 
 // Modal for displaying messages
@@ -36,21 +40,103 @@ const Modal = ({ message, onClose }) => (
     </div>
 );
 
+// --- File Parsing Logic ---
+
+// Helper to load external scripts
+const loadScript = (src) => {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+        document.body.appendChild(script);
+    });
+};
+
+// Function to read and parse different file types
+const parseFile = async (file) => {
+    const extension = file.name.split('.').pop().toLowerCase();
+    const fileBuffer = await file.arrayBuffer();
+
+    if (extension === 'txt') {
+        return new TextDecoder().decode(fileBuffer);
+    }
+
+    if (extension === 'pdf') {
+        if (!window.pdfjsLib) {
+            throw new Error('PDF library is not loaded.');
+        }
+        // Use the full HTTPS URL to avoid protocol issues in sandboxed environments
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js`;
+        const pdf = await window.pdfjsLib.getDocument({ data: fileBuffer }).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(' ') + '\n';
+        }
+        return text;
+    }
+
+    if (extension === 'docx') {
+        if (!window.mammoth) {
+            throw new Error('DOCX library is not loaded.');
+        }
+        const result = await window.mammoth.extractRawText({ arrayBuffer: fileBuffer });
+        return result.value;
+    }
+
+    throw new Error('Unsupported file type. Please upload a .txt, .pdf, or .docx file.');
+};
+
 
 // --- Main Tool Components ---
+
+// Define a character limit for API calls
+const API_CHAR_LIMIT = 100000; // Approx. 25,000 words, a safe limit for the API
 
 // 1. Intelligent Clause Extractor
 const ClauseExtractor = () => {
     const [contractText, setContractText] = useState('');
+    const [fileName, setFileName] = useState('');
     const [extractedClauses, setExtractedClauses] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isParsing, setIsParsing] = useState(false);
     const [error, setError] = useState(null);
+
+    const handleFileChange = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        setIsParsing(true);
+        setError(null);
+        setFileName(file.name);
+        setContractText('');
+        setExtractedClauses(null);
+
+        try {
+            const text = await parseFile(file);
+            setContractText(text);
+        } catch (err) {
+            setError(err.message);
+            setFileName('');
+        } finally {
+            setIsParsing(false);
+            event.target.value = null; // Reset file input
+        }
+    };
 
     const callGeminiAPI = async (prompt) => {
         setIsLoading(true);
         setError(null);
         setExtractedClauses(null);
         try {
+            // This reads the API key from your .env file in local development
+            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
             const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
             const payload = {
                 contents: chatHistory,
@@ -75,7 +161,7 @@ const ClauseExtractor = () => {
                     }
                 }
             };
-            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;;
+
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
@@ -85,7 +171,8 @@ const ClauseExtractor = () => {
             });
 
             if (!response.ok) {
-                throw new Error(`API call failed with status: ${response.status}`);
+                const errorBody = await response.text();
+                throw new Error(`API call failed with status: ${response.status}. Body: ${errorBody}`);
             }
 
             const result = await response.json();
@@ -95,11 +182,12 @@ const ClauseExtractor = () => {
                 const parsedJson = JSON.parse(text);
                 setExtractedClauses(parsedJson.clauses || []);
             } else {
+                console.error("Unexpected API response structure:", result);
                 throw new Error("Unexpected API response structure or no content.");
             }
         } catch (err) {
             console.error("Error in Gemini API call:", err);
-            setError("Failed to extract clauses. The AI model might be busy or the input is invalid. Please try again.");
+            setError("Failed to extract clauses. This can happen with very large documents. Please try a smaller file.");
         } finally {
             setIsLoading(false);
         }
@@ -107,17 +195,21 @@ const ClauseExtractor = () => {
 
     const handleExtract = () => {
         if (!contractText.trim()) {
-            setError("Please paste some contract text to analyze.");
+            setError("Please upload a contract file to analyze.");
             return;
         }
+
+        // Check if the document exceeds the character limit
+        if (contractText.length > API_CHAR_LIMIT) {
+            setError(`Document is too large (${contractText.length} characters). Please use a file with fewer than ${API_CHAR_LIMIT} characters.`);
+            return;
+        }
+
         const prompt = `
             Analyze the following legal contract text. Identify and extract key clauses. For each clause, provide:
             1. The type of clause (e.g., "Limitation of Liability", "Confidentiality", "Term and Termination", "Governing Law", "Indemnification").
             2. A brief, one-sentence summary of the clause's core purpose.
             3. The exact verbatim text of the clause.
-
-            If the text does not appear to be a contract or is too short, return an empty list.
-
             Contract Text:
             ---
             ${contractText}
@@ -129,19 +221,24 @@ const ClauseExtractor = () => {
     return (
         <div className="p-4 md:p-8 bg-gray-50 rounded-xl shadow-inner">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">Intelligent Clause Extractor</h2>
-            <textarea
-                className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                placeholder="Paste the full text of a contract here..."
-                value={contractText}
-                onChange={(e) => setContractText(e.target.value)}
-            ></textarea>
+
+            <div className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg text-center bg-white">
+                <label htmlFor="file-upload" className="cursor-pointer text-blue-600 font-semibold hover:text-blue-700">
+                    <UploadIcon />
+                    <span>Choose a contract file (.txt, .pdf, .docx)</span>
+                </label>
+                <input id="file-upload" type="file" className="hidden" accept=".txt,.pdf,.docx" onChange={handleFileChange} />
+                {isParsing && <p className="mt-4 text-gray-600 font-semibold">Parsing file...</p>}
+                {fileName && !isParsing && <p className="mt-4 text-gray-600">Selected: <span className="font-semibold">{fileName}</span></p>}
+            </div>
+
             <div className="text-center mt-6">
                 <button
                     onClick={handleExtract}
-                    disabled={isLoading}
+                    disabled={isLoading || isParsing || !contractText}
                     className="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-transform transform hover:scale-105 flex items-center justify-center mx-auto"
                 >
-                    {isLoading ? <LoadingIcon /> : 'Extract Clauses'}
+                    {isLoading ? <LoadingIcon text="Analyzing..."/> : 'Extract Clauses'}
                 </button>
             </div>
             {error && <div className="mt-6 p-4 bg-red-100 text-red-700 border border-red-300 rounded-lg text-center">{error}</div>}
@@ -173,18 +270,49 @@ const ClauseExtractor = () => {
 const ContractComparer = () => {
     const [text1, setText1] = useState('');
     const [text2, setText2] = useState('');
+    const [fileName1, setFileName1] = useState('');
+    const [fileName2, setFileName2] = useState('');
+    const [isParsing1, setIsParsing1] = useState(false);
+    const [isParsing2, setIsParsing2] = useState(false);
     const [comparisonResult, setComparisonResult] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    const handleFileChange = (version) => async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const setIsParsing = version === 'A' ? setIsParsing1 : setIsParsing2;
+        const setFileName = version === 'A' ? setFileName1 : setFileName2;
+        const setText = version === 'A' ? setText1 : setText2;
+
+        setIsParsing(true);
+        setError(null);
+        setFileName(file.name);
+        setText('');
+        setComparisonResult('');
+
+        try {
+            const parsedText = await parseFile(file);
+            setText(parsedText);
+        } catch (err) {
+            setError(err.message);
+            setFileName('');
+        } finally {
+            setIsParsing(false);
+            event.target.value = null;
+        }
+    };
 
     const callGeminiAPI = async (prompt) => {
         setIsLoading(true);
         setError(null);
         setComparisonResult('');
         try {
+            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
             const payload = { contents: chatHistory };
-            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;;
+
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
@@ -201,7 +329,6 @@ const ContractComparer = () => {
 
             if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts.length > 0) {
                 const text = result.candidates[0].content.parts[0].text;
-                // Simple formatting to make it more HTML-friendly
                 const formattedText = text
                     .replace(/^- (.*)$/gm, '<p class="text-red-600">- $1</p>')
                     .replace(/^\+ (.*)$/gm, '<p class="text-green-600">+ $1</p>')
@@ -213,7 +340,7 @@ const ContractComparer = () => {
             }
         } catch (err) {
             console.error("Error in Gemini API call:", err);
-            setError("Failed to compare versions. The AI model might be busy or the input is invalid. Please try again.");
+            setError("Failed to compare versions. This can happen with very large documents. Please try smaller files.");
         } finally {
             setIsLoading(false);
         }
@@ -221,9 +348,16 @@ const ContractComparer = () => {
 
     const handleCompare = () => {
         if (!text1.trim() || !text2.trim()) {
-            setError("Please provide both versions of the contract text.");
+            setError("Please upload both versions of the contract.");
             return;
         }
+
+        // Check if either document exceeds the character limit
+        if (text1.length > API_CHAR_LIMIT || text2.length > API_CHAR_LIMIT) {
+            setError(`One or both documents are too large. Please use files with fewer than ${API_CHAR_LIMIT} characters each.`);
+            return;
+        }
+
         const prompt = `
             You are a legal contract comparison tool. Compare the two contract versions below (Version A and Version B).
             Identify and list the differences in a "diff" format.
@@ -231,10 +365,8 @@ const ContractComparer = () => {
             - Use a plus sign (+) for lines added in Version B.
             - Use two spaces for unchanged lines to provide context.
             - Provide a brief summary of the key changes at the very top.
-
             --- VERSION A ---
             ${text1}
-
             --- VERSION B ---
             ${text2}
         `;
@@ -245,32 +377,40 @@ const ContractComparer = () => {
         <div className="p-4 md:p-8 bg-gray-50 rounded-xl shadow-inner">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">Contract Version Comparison</h2>
             <div className="grid md:grid-cols-2 gap-6">
+                {/* Version A Upload */}
                 <div>
                     <h3 className="text-lg font-semibold text-gray-700 mb-2">Version A (Original)</h3>
-                    <textarea
-                        className="w-full h-80 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                        placeholder="Paste the original contract text here..."
-                        value={text1}
-                        onChange={(e) => setText1(e.target.value)}
-                    ></textarea>
+                    <div className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg text-center bg-white">
+                        <label htmlFor="file-upload-A" className="cursor-pointer text-blue-600 font-semibold hover:text-blue-700">
+                            <UploadIcon />
+                            <span>Choose a file (.txt, .pdf, .docx)</span>
+                        </label>
+                        <input id="file-upload-A" type="file" className="hidden" accept=".txt,.pdf,.docx" onChange={handleFileChange('A')} />
+                        {isParsing1 && <p className="mt-4 text-gray-600 font-semibold">Parsing file...</p>}
+                        {fileName1 && !isParsing1 && <p className="mt-4 text-gray-600">Selected: <span className="font-semibold">{fileName1}</span></p>}
+                    </div>
                 </div>
+                {/* Version B Upload */}
                 <div>
                     <h3 className="text-lg font-semibold text-gray-700 mb-2">Version B (Revised)</h3>
-                    <textarea
-                        className="w-full h-80 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                        placeholder="Paste the revised contract text here..."
-                        value={text2}
-                        onChange={(e) => setText2(e.target.value)}
-                    ></textarea>
+                    <div className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg text-center bg-white">
+                        <label htmlFor="file-upload-B" className="cursor-pointer text-blue-600 font-semibold hover:text-blue-700">
+                            <UploadIcon />
+                            <span>Choose a file (.txt, .pdf, .docx)</span>
+                        </label>
+                        <input id="file-upload-B" type="file" className="hidden" accept=".txt,.pdf,.docx" onChange={handleFileChange('B')} />
+                        {isParsing2 && <p className="mt-4 text-gray-600 font-semibold">Parsing file...</p>}
+                        {fileName2 && !isParsing2 && <p className="mt-4 text-gray-600">Selected: <span className="font-semibold">{fileName2}</span></p>}
+                    </div>
                 </div>
             </div>
             <div className="text-center mt-6">
                 <button
                     onClick={handleCompare}
-                    disabled={isLoading}
+                    disabled={isLoading || isParsing1 || isParsing2 || !text1 || !text2}
                     className="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-transform transform hover:scale-105 flex items-center justify-center mx-auto"
                 >
-                    {isLoading ? <LoadingIcon /> : 'Compare Versions'}
+                    {isLoading ? <LoadingIcon text="Comparing..."/> : 'Compare Versions'}
                 </button>
             </div>
             {error && <div className="mt-6 p-4 bg-red-100 text-red-700 border border-red-300 rounded-lg text-center">{error}</div>}
@@ -301,9 +441,10 @@ const ContractGenerator = () => {
         setError(null);
         setGeneratedContract('');
         try {
+            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
             const payload = { contents: chatHistory };
-            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;;
+
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
@@ -338,12 +479,11 @@ const ContractGenerator = () => {
             return;
         }
         const prompt = `
-            You are a basic contract generation assistant. Generate a simple ${contractType} (Non-Disclosure Agreement).
+            You are a basic contract generation assistant. Generate a simple ${contractType}.
             Incorporate the following details provided by the user.
             The output should be a complete, well-formatted contract draft.
-            Use clear placeholders like [Disclosing Party Name], [Receiving Party Name], [Effective Date], [Term of Agreement], etc., where specific information is needed.
+            Use clear placeholders like [Disclosing Party Name], [Receiving Party Name], [Effective Date], etc.
             Add a clear disclaimer at the very bottom stating: "This is an AI-generated draft and not legal advice. Consult with a qualified legal professional before use."
-
             User-provided details:
             ---
             ${customDetails}
@@ -355,7 +495,6 @@ const ContractGenerator = () => {
     const handleCopyToClipboard = () => {
         if (!generatedContract) return;
 
-        // Using the recommended document.execCommand for compatibility
         const textarea = document.createElement('textarea');
         textarea.value = generatedContract;
         document.body.appendChild(textarea);
@@ -402,7 +541,7 @@ const ContractGenerator = () => {
                         disabled={isLoading}
                         className="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-transform transform hover:scale-105 flex items-center justify-center mx-auto"
                     >
-                        {isLoading ? <LoadingIcon /> : 'Generate Contract'}
+                        {isLoading ? <LoadingIcon text="Generating..."/> : 'Generate Contract'}
                     </button>
                 </div>
             </div>
@@ -435,8 +574,25 @@ const ContractGenerator = () => {
 
 export default function App() {
     const [activeTool, setActiveTool] = useState('extractor');
+    const [scriptsLoaded, setScriptsLoaded] = useState(false);
+
+    // Load external libraries for file parsing when the app starts
+    useEffect(() => {
+        Promise.all([
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js'),
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js')
+        ]).then(() => {
+            setScriptsLoaded(true);
+        }).catch(error => {
+            console.error(error);
+            // Optionally, show an error to the user that file parsing might not work
+        });
+    }, []);
 
     const renderTool = () => {
+        if (!scriptsLoaded) {
+            return <div className="text-center p-10">Loading file parsing libraries...</div>;
+        }
         switch (activeTool) {
             case 'extractor':
                 return <ClauseExtractor />;
