@@ -31,10 +31,9 @@ To run this project locally, please follow these steps:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/YOUR_USERNAME/legal-ai-toolkit.git](https://github.com/YOUR_USERNAME/legal-ai-toolkit.git)
+    git clone [https://github.com/ayampandey/legal-ai-toolkit.git](https://github.com/ayampandey/legal-ai-toolkit.git)
     cd legal-ai-toolkit
     ```
-    *(Remember to replace `YOUR_USERNAME` with your actual GitHub username)*
 
 2.  **Install dependencies:**
     ```bash
