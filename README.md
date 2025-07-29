@@ -1,6 +1,6 @@
 # Legal AI Toolkit
 
-This project is a web-based "Legal AI Toolkit" designed as a final year project for a B.Sc. (Data Science) and LL.B. (Hons) program. It integrates three core legal tech tools into a single, user-friendly interface to demonstrate the practical application of AI in the legal field.
+This project is a web-based "Legal AI Toolkit" designed as a personal project for my degree which is an integrated course of B.Sc. (Data Science) and LL.B. (Hons) program. It integrates three core legal tech tools into a single, user-friendly interface to demonstrate the practical application of AI in the legal field.
 
 ## ✨ Features
 
