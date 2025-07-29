@@ -1,70 +1,63 @@
-# Getting Started with Create React App
+# Legal AI Toolkit
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This project is a web-based "Legal AI Toolkit" designed as a final year project for a B.Sc. (Data Science) and LL.B. (Hons) program. It integrates three core legal tech tools into a single, user-friendly interface to demonstrate the practical application of AI in the legal field.
 
-## Available Scripts
+## ✨ Features
 
-In the project directory, you can run:
+This toolkit includes three main components:
 
-### `npm start`
+1.  **Intelligent Clause Extractor:** Paste the text of a contract, and the tool uses AI to identify, extract, and summarize key clauses such as Limitation of Liability, Confidentiality, and Governing Law.
+2.  **Contract Version Comparison:** Upload two versions of a contract, and the tool provides a "diff" style comparison, clearly highlighting what has been added, removed, or changed between the documents.
+3.  **Basic Contract Generation Assistant:** Generate a basic draft for common legal documents (like a Non-Disclosure Agreement) by providing key details. The tool creates a template with placeholders for customization.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## 🛠️ Tech Stack
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+* **Frontend:** React.js
+* **Styling:** Tailwind CSS
+* **AI/LLM:** Google Gemini API
 
-### `npm test`
+---
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## 🚀 Getting Started
 
-### `npm run build`
+To run this project locally, please follow these steps:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Prerequisites
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+* Node.js and npm installed on your machine.
+* A Google Gemini API key. You can get one for free from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Installation & Setup
 
-### `npm run eject`
+1.  **Clone the repository:**
+    ```bash
+    git clone [https://github.com/YOUR_USERNAME/legal-ai-toolkit.git](https://github.com/YOUR_USERNAME/legal-ai-toolkit.git)
+    cd legal-ai-toolkit
+    ```
+    *(Remember to replace `YOUR_USERNAME` with your actual GitHub username)*
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+3.  **Set up your environment variables:**
+    * In the root folder, make a copy of the `.env.example` file and rename it to `.env`.
+    * Open the new `.env` file.
+    * Add your Google Gemini API key to this file:
+        ```
+        REACT_APP_GEMINI_API_KEY=your-actual-api-key-goes-here
+        ```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+4.  **Run the application:**
+    ```bash
+    npm start
+    ```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+The application will now be running at `http://localhost:3000`.
 
-## Learn More
+---
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Disclaimer
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+This is an academic project for demonstration purposes only and should not be used for actual legal work. The AI-generated content may not be accurate or legally binding. Always consult with a qualified legal professional.
